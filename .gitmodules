@@ -4,3 +4,6 @@
 [submodule "excons"]
 	path = excons
 	url = https://github.com/gatgui/excons.git
+[submodule "libjpeg-turbo"]
+	path = libjpeg-turbo
+	url = https://github.com/gatgui/libjpeg-turbo.git
