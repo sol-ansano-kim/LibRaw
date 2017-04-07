@@ -69,8 +69,9 @@ if sys.platform != "win32":
         cppflags += " -Wno-unused-private-field"
         cppflags += " -Wno-unused-function"
     libs.append("m")
-    if not staticlib:
+    if staticlib:
         defs.append("LIBRAW_NODLL")
+    else:
         defs.append("LIBRAW_BUILDLIB")
         
 else:
