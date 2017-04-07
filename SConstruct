@@ -174,7 +174,10 @@ prjs.append({"name": "raw",
              "cppflags": cppflags,
              "incdirs": [".", out_incdir, "ext/lcms2-2.8/include"],
              "srcs": srcs,
+             "version": "%s.%s.%s" % (major, minor, patch),
+             "soname": "libraw.so.%s" % (major),
              "deps": deps,
+             "install": {"%s/libraw" % out_incdir: glob.glob("libraw/*.h")},
              "custom": customs})
 
 
@@ -197,7 +200,7 @@ for sam in glob.glob("samples/*.cpp"):
                  "type": "testprograms",
                  "cflags": cflags,
                  "cppflags": cppflags,
-                 "incdirs": [".", out_incdir],
+                 "incdirs": [out_incdir],
                  "srcs": [sam],
                  "deps": ["raw"] + deps,
                  "custom": [LibrawRequire] + customs})
