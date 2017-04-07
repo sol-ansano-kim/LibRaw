@@ -69,59 +69,55 @@ if sys.platform != "win32":
         cppflags += " -Wno-unused-private-field"
         cppflags += " -Wno-unused-function"
     libs.append("m")
-    if staticlib:
-        defs.append("LIBRAW_NODLL")
-    else:
-        defs.append("LIBRAW_BUILDLIB")
         
 else:
+    cppflags += " /LD"
     cppflags += " /wd4101"
     cppflags += " /wd4996"
     defs.append("_CRT_SECURE_NO_WARNINGS")
     defs.append("_ATL_SECURE_NO_WARNINGS")
     defs.append("_AFX_SECURE_NO_WARNINGS")
     defs.append("DJGPP")
-    
+    if staticlib:
+        defs.append("LIBRAW_NODLL")
+    else:
+        defs.append("LIBRAW_BUILDLIB")
 
 if sys.platform == "darwin":
     cppflags += " -Wno-deprecated-declarations"
 
-cppflags += " -w -O4"
+
 
 # LCMS setup
-def Lcm2Name():
+def Lcms2Name():
     return ("lib" if sys.platform == "win32" else "") + "lcms2"
 
-lcms_libname = excons.GetArgument("lcms-lib-name", "lcms2")
-lcms_static = (excons.GetArgument("lcms-static", 1, int) != 0)
-lcms_inc, lcms_lib = excons.GetDirs("lcms", silent=True)
-if lcms_inc is None and lcms_lib is None:
-    if not os.path.isdir("ext/lcms2-2.8"):
-        print("=== Extracting lcms2-2.8.tar.gz...")
-        f = tarfile.open("ext/lcms2-2.8.tar.gz")
-        f.extractall("ext")
-        f.close()
-    lcms_static = True
-    lcms_cppflags = cppflags
-    if sys.platform != "win32":
-        lcms_cppflags += " -Wno-strict-aliasing"
+if not os.path.isdir("ext/lcms2-2.8"):
+    print("=== Extracting lcms2-2.8.tar.gz...")
+    f = tarfile.open("ext/lcms2-2.8.tar.gz")
+    f.extractall("ext")
+    f.close()
 
-    prjs.append({"name": lcms_libname,
-                 "alias": "lcms2",
-                 "type": "staticlib",
-                 "cflags": cflags,
-                 "cppflags": lcms_cppflags,
-                 "incdirs": ["ext/lcms2-2.8/include"],
-                 "srcs": glob.glob("ext/lcms2-2.8/src/*.c"),
-                 "deps": ["libjpeg"]})
-    lcms_inc = "ext/lcms2-2.8/include"
-    lcms_lib = excons.OutputBaseDirectory() + "/lib"
+lcms_cppflags = cppflags
+if sys.platform != "win32":
+    lcms_cppflags += " -Wno-strict-aliasing"
 
+lcms_inc = "ext/lcms2-2.8/include"
+
+prjs.append({"name": Lcms2Name(),
+             "alias": "lcms2",
+             "type": "staticlib",
+             "cflags": cflags,
+             "cppflags": lcms_cppflags,
+             "incdirs": [lcms_inc, out_incdir],
+             "install": {out_incdir: glob.glob("%s/*.h" % lcms_inc)},
+             "srcs": glob.glob("ext/lcms2-2.8/src/*.c"),
+             "deps": ["libjpeg"] if with_jpg else []})
 
 def Lcms2Require(env):
-    env.Append(CPPPATH=[out_incdir])
+    env.Append(CPPPATH=[lcms_inc, out_incdir])
     env.Append(LIBPATH=[out_libdir])
-    excons.Link(env, Lcm2Name(), static=True, force=True, silent=True)
+    excons.Link(env, Lcms2Name(), static=True, force=True, silent=True)
 
 
 # jpeg setup
@@ -159,7 +155,7 @@ srcs =["internal/dcraw_common.cpp",
 
 if with_jpg:
     defs += ["USE_JPEG8", "USE_JPEG"]
-    deps += ["jpeg"]
+    deps += ["libjpeg"]
     customs += [JpegRequire]
 
 if with_lcms2:
@@ -168,12 +164,20 @@ if with_lcms2:
     customs += [Lcms2Require]
     
 
-prjs.append({"name": "raw",
+def LibrawName(static=False):
+    bn = "lib" if sys.platform == "win32" else ""
+    libname = bn + "raw"
+    if sys.platform == "win32" and static:
+       libname += "-static"
+    return libname
+
+prjs.append({"name": LibrawName(staticlib),
              "type": "staticlib" if staticlib else "sharedlib",
+             "alias": "libraw",
              "cflags": cflags,
              "defs": defs,
              "cppflags": cppflags,
-             "incdirs": [".", out_incdir, "ext/lcms2-2.8/include"],
+             "incdirs": [".", out_incdir],
              "srcs": srcs,
              "version": "%s.%s.%s" % (major, minor, patch),
              "soname": "libraw.so.%s" % (major),
@@ -182,12 +186,6 @@ prjs.append({"name": "raw",
              "custom": customs})
 
 
-def LibrawName(static=False):
-    libname = "raw"
-    if sys.platform == "win32" and static:
-       libname += "-static"
-    return libname
-
 def LibrawRequire(env):
     env.Append(CPPPATH=[out_incdir])
     env.Append(LIBPATH=[out_libdir])
@@ -195,6 +193,10 @@ def LibrawRequire(env):
     excons.Link(env, LibrawName(static=staticlib), static=staticlib, force=True, silent=False)
 
 for sam in glob.glob("samples/*.cpp"):
+    if "unprocessed_raw.cpp" in sam:
+        if sys.platform == "win32":
+            continue
+
     base = os.path.splitext(os.path.basename(sam))[0]
     prjs.append({"name": base,
                  "alias": "tests",
@@ -202,10 +204,10 @@ for sam in glob.glob("samples/*.cpp"):
                  "cflags": cflags,
                  "cppflags": cppflags,
                  "incdirs": [out_incdir],
+                 "defs": defs,
                  "srcs": [sam],
-                 "deps": ["raw"] + deps,
+                 "deps": [LibrawName(staticlib)] + deps,
                  "custom": [LibrawRequire] + customs})
-
 
 targets = excons.DeclareTargets(env, prjs)
 
