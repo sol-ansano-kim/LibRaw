@@ -63,11 +63,21 @@ if sys.platform != "win32":
     cppflags += " -Wno-unused-parameter"
     cppflags += " -Wno-unused-variable"
     cppflags += " -Wno-missing-field-initializers"
+    cppflags += " -Wno-unused-function"
+    cppflags += " -Wno-sign-compare"
+
     if sys.platform != "darwin":
         cppflags += " -Wno-unused-but-set-variable"
+        cppflags += " -Wno-parentheses"
+        cppflags += " -Wno-type-limits"
+        cppflags += " -Wno-narrowing"
+        cppflags += " -Wno-maybe-uninitialized"
+        cppflags += " -Wno-aggressive-loop-optimizations"
     else:
         cppflags += " -Wno-unused-private-field"
-        cppflags += " -Wno-unused-function"
+        cppflags += " -Wno-constant-conversion"
+        cppflags += " -Wno-sometimes-uninitialized"
+
     libs.append("m")
         
 else:
