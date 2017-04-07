@@ -200,7 +200,7 @@ def LibrawRequire(env):
     env.Append(CPPPATH=[out_incdir])
     env.Append(LIBPATH=[out_libdir])
 
-    excons.Link(env, LibrawName(static=staticlib), static=staticlib, force=True, silent=False)
+    excons.Link(env, LibrawName(static=staticlib), static=staticlib, force=True, silent=True)
 
 for sam in glob.glob("samples/*.cpp"):
     if "unprocessed_raw.cpp" in sam:
