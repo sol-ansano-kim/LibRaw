@@ -1,11 +1,10 @@
 samples/lens-identify.cpp
 .build/
 .sconsign.dblite
-CMakeLists.txt
-cmake/
 excons.cache
 *.automake.*
 *.cmake.*
 release/
 debug/
+ext/lcms*/
 
