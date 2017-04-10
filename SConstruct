@@ -15,7 +15,6 @@ out_libdir = excons.OutputBaseDirectory() + "/lib"
 with_jpg = (excons.GetArgument("libraw-with-jpeg", 0, int) != 0)
 with_lcms2 = (excons.GetArgument("libraw-with-lcms2", 0, int) != 0)
 
-#excons.SetArgument("libjpeg-jpeg8", 1)
 
 prjs = []
 defs = []
@@ -114,6 +113,7 @@ def JpegLibname(static):
 
 rv = excons.ExternalLibRequire("libjpeg", libnameFunc=JpegLibname)
 if not rv["require"]:
+    excons.SetArgument("libjpeg-jpeg8", 1)
     excons.PrintOnce("Build jpeg from sources ...")
     excons.Call("libjpeg-turbo", imp=["RequireLibjpeg"])
     def JpegRequire(env):
