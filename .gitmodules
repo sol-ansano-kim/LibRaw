@@ -4,3 +4,6 @@
 [submodule "libjpeg-turbo"]
 	path = libjpeg-turbo
 	url = https://github.com/gatgui/libjpeg-turbo.git
+[submodule "Little-CMS"]
+	path = Little-CMS
+	url = git://github.com/gatgui/Little-CMS

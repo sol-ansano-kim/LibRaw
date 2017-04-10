@@ -15,7 +15,7 @@ out_libdir = excons.OutputBaseDirectory() + "/lib"
 with_jpg = (excons.GetArgument("libraw-with-jpeg", 0, int) != 0)
 with_lcms2 = (excons.GetArgument("libraw-with-lcms2", 0, int) != 0)
 
-excons.SetArgument("with-jpeg8", 1)
+#excons.SetArgument("libjpeg-jpeg8", 1)
 
 prjs = []
 defs = []
@@ -98,61 +98,28 @@ if sys.platform == "darwin":
 
 
 
-# LCMS setup
-def Lcms2Name():
-    return ("lib" if sys.platform == "win32" else "") + "lcms2"
-
-if not os.path.isdir("ext/lcms2-2.8"):
-    print("=== Extracting lcms2-2.8.tar.gz...")
-    f = tarfile.open("ext/lcms2-2.8.tar.gz")
-    f.extractall("ext")
-    f.close()
-
-lcms_cppflags = cppflags
-if sys.platform != "win32":
-    lcms_cppflags += " -Wno-strict-aliasing"
-
-lcms_inc = "ext/lcms2-2.8/include"
-
-prjs.append({"name": Lcms2Name(),
-             "alias": "lcms2",
-             "type": "staticlib",
-             "cflags": cflags,
-             "cppflags": lcms_cppflags,
-             "incdirs": [lcms_inc, out_incdir],
-             "install": {out_incdir: glob.glob("%s/*.h" % lcms_inc)},
-             "srcs": glob.glob("ext/lcms2-2.8/src/*.c"),
-             "deps": ["libjpeg"] if with_jpg else []})
-
-def Lcms2Require(env):
-    env.Append(CPPPATH=[lcms_inc, out_incdir])
-    env.Append(LIBPATH=[out_libdir])
-    excons.Link(env, Lcms2Name(), static=True, force=True, silent=True)
-
+# LCMS2 setup
+rv = excons.ExternalLibRequire("lcms2")
+if not rv["require"]:
+    excons.PrintOnce("Build lcms2 from sources ...")
+    excons.Call("Little-CMS", imp=["RequireLCMS2"])
+    def Lcms2Require(env):
+        RequireLCMS2(env)
+else:
+    Lcms2Require = rv["require"]
 
 # jpeg setup
 def JpegLibname(static):
-    name = "jpeg"
-    if sys.platform == "win32" and static:
-        name = "lib" + name + "-static"
-    return name
+    return "jpeg"
 
-rv = excons.cmake.ExternalLibRequire({}, name="jpeg", libnameFunc=JpegLibname)
-if rv is None:
+rv = excons.ExternalLibRequire("libjpeg", libnameFunc=JpegLibname)
+if not rv["require"]:
     excons.PrintOnce("Build jpeg from sources ...")
-    excons.Call("libjpeg-turbo", imp=["LibjpegName"], overrides={"ENABLE_SHARED": "OFF"})
-    if sys.platform == "win32":
-        excons.cmake.OutputsCachePath("libjpeg")
-    else:
-        excons.automake.OutputsCachePath("libjpeg")
-
-    jpeg_static = True
-
-
-def JpegRequire(env, static=False):
-    env.Append(CPPPATH=[excons.OutputBaseDirectory() + "/include"])
-    env.Append(LIBPATH=[excons.OutputBaseDirectory() + "/lib"])
-    excons.Link(env, JpegLibname(static=True), static=True, silent=True)
+    excons.Call("libjpeg-turbo", imp=["RequireLibjpeg"])
+    def JpegRequire(env):
+        RequireLibjpeg(static=(excons.GetArgument("libjpeg-static", 1, 0) != 0))
+else:
+    JpegRequire = rv["require"]
 
 
 srcs =["internal/dcraw_common.cpp",
@@ -174,14 +141,31 @@ if with_lcms2:
     customs += [Lcms2Require]
     
 
-def LibrawName(static=False):
+
+def LibrawName():
     bn = "lib" if sys.platform == "win32" else ""
     libname = bn + "raw"
-    if sys.platform == "win32" and static:
+    if sys.platform == "win32" and staticlib:
        libname += "-static"
     return libname
 
-prjs.append({"name": LibrawName(staticlib),
+def LibrawPath():
+    name = LibrawName()
+    if sys.platform == "win32":
+        libname = name + ".lib"
+    else:
+        libname = "lib" + name + (".a" if staticlib else excons.SharedLibraryLinkExt())
+    return out_libdir + "/" + libname
+
+def RequireLibraw(env):
+    if staticlib:
+        env.Append(CPPDEFINES=["LIBRAW_NODLL"])
+    env.Append(CPPPATH=[out_incdir])
+    env.Append(LIBPATH=[out_libdir])
+    excons.Link(env, LibrawName(), static=staticlib, force=True, silent=True)
+
+
+prjs.append({"name": LibrawName(),
              "type": "staticlib" if staticlib else "sharedlib",
              "alias": "libraw",
              "cflags": cflags,
@@ -189,6 +173,7 @@ prjs.append({"name": LibrawName(staticlib),
              "cppflags": cppflags,
              "incdirs": [".", out_incdir],
              "srcs": srcs,
+             "symvis": "default",
              "version": "%s.%s.%s" % (major, minor, patch),
              "soname": "libraw.so.%s" % (major),
              "deps": deps,
@@ -196,11 +181,6 @@ prjs.append({"name": LibrawName(staticlib),
              "custom": customs})
 
 
-def LibrawRequire(env):
-    env.Append(CPPPATH=[out_incdir])
-    env.Append(LIBPATH=[out_libdir])
-
-    excons.Link(env, LibrawName(static=staticlib), static=staticlib, force=True, silent=True)
 
 for sam in glob.glob("samples/*.cpp"):
     if "unprocessed_raw.cpp" in sam:
@@ -216,9 +196,12 @@ for sam in glob.glob("samples/*.cpp"):
                  "incdirs": [out_incdir],
                  "defs": defs,
                  "srcs": [sam],
-                 "deps": [LibrawName(staticlib)] + deps,
-                 "custom": [LibrawRequire] + customs})
+                 "deps": ["libraw"] + deps,
+                 "custom": [RequireLibraw] + customs})
 
-targets = excons.DeclareTargets(env, prjs)
+excons.DeclareTargets(env, prjs)
 
-Default("tests")
+Export("LibrawName LibrawPath RequireLibraw")
+
+Default(["libraw"])
+
