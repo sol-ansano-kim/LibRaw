@@ -83,20 +83,8 @@ if staticlib:
 else:
     defs.append("LIBRAW_BUILDLIB")
 
-# LCMS2 setup
 
-rv = excons.ExternalLibRequire("lcms2")
-if not rv["require"]:
-    if with_lcms2:
-        excons.PrintOnce("Build lcms2 from sources ...")
-        excons.Call("Little-CMS", imp=["RequireLCMS2"])
-        def Lcms2Require(env):
-            RequireLCMS2(env)
-    else:
-        def Lcms2Require(env):
-            pass
-else:
-    Lcms2Require = rv["require"]
+lcms2_overrides = {}
 
 # jpeg setup
 
@@ -108,14 +96,36 @@ if not rv["require"]:
     if with_jpg:
         jpegStatic = (excons.GetArgument("libjpeg-static", 1, int) != 0)
         excons.PrintOnce("Build jpeg from sources ...")
-        excons.Call("libjpeg-turbo", imp=["RequireLibjpeg"])
+        excons.Call("libjpeg-turbo", imp=["LibjpegName RequireLibjpeg"])
         def JpegRequire(env):
             RequireLibjpeg(env, static=jpegStatic)
+        # If we are to build lcms2 from sources, have it use this jpeg library
+        lcms2_overrides["with-libjpeg"] = excons.OutputBaseDirectory()
+        lcms2_overrides["libjpeg-static"] = (1 if jpegStatic else 0)
+        lcms2_overrides["libjpeg-name"] = LibjpegName(static=jpegStatic)
     else:
         def JpegRequire(env):
             pass
 else:
     JpegRequire = rv["require"]
+
+# LCMS2 setup
+
+rv = excons.ExternalLibRequire("lcms2")
+if not rv["require"]:
+    if with_lcms2:
+        lcms2Static = (excons.GetArgument("lcms2-static", 1, int) != 0)
+        excons.PrintOnce("Build lcms2 from sources ...")
+        excons.Call("Little-CMS", overrides=lcms2_overrides, imp=["RequireLCMS2"])
+        def Lcms2Require(env):
+            RequireLCMS2(env)
+    else:
+        def Lcms2Require(env):
+            pass
+else:
+    Lcms2Require = rv["require"]
+
+
 
 
 # libraw
@@ -161,7 +171,7 @@ prjs.append({"name": LibrawName(),
              "alias": "libraw",
              "defs": defs,
              "cppflags": cppflags,
-             "incdirs": ["libraw", "."],
+             "incdirs": [".", "libraw", out_incdir],
              "srcs": ["internal/dcraw_common.cpp",
                       "internal/dcraw_fileio.cpp",
                       "internal/demosaic_packs.cpp",
